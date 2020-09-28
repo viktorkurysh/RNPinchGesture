@@ -8,7 +8,7 @@ import Animated, {
   cond,
   block,
   Value,
-  set
+  set,
 } from 'react-native-reanimated';
 import {
   vec,
@@ -38,32 +38,44 @@ function App() {
   const translation = vec.createValue(0, 0);
   const origin = vec.createValue(0, 0);
   const focal = vec.createValue(0, 0);
-  const scale = new Value(1);
+  const gestureScale = new Value(1);
   const state = new Value(State.UNDETERMINED);
   const numberOfPoints = new Value(0);
   const gestureHandler = onGestureEvent({
     focalX: focal.x,
     focalY: focal.y,
     state,
-    scale,
+    scale: gestureScale,
     numberOfPoints,
   });
-  const adjuctedFocal = vec.sub(focal, CENTER);
+  const scaleOffset = new Value(1);
+  const offset = vec.createValue(0, 0);
+
+  const adjuctedFocal = vec.sub(focal, vec.add(CENTER, offset));
 
   useCode(
     () =>
       block([
         cond(pinchBegan(state), vec.set(origin, adjuctedFocal)),
         cond(pinchActive(state, numberOfPoints), [
-          vec.set(translation, vec.sub(adjuctedFocal, origin)),
+          vec.set(
+            translation,
+            vec.add(
+              vec.sub(adjuctedFocal, origin),
+              origin,
+              vec.multiply(-1, gestureScale, origin),
+            ),
+          ),
         ]),
         cond(eq(state, State.END), [
-          set(scale, timing({from: scale, to: 1})),
-          set(translation.x, timing({from: translation.x, to: 0})),
-          set(translation.y, timing({from: translation.y, to: 0})),
+          set(scaleOffset, multiply(scaleOffset, gestureScale)),
+          vec.set(offset, vec.add(offset, translation)),
+          set(gestureScale, 1),
+          vec.set(focal, 0),
+          vec.set(translation, 0),
         ]),
       ]),
-    [focal, origin, state],
+    [adjuctedFocal, gestureScale, numberOfPoints, origin, state, translation],
   );
 
   return (
@@ -81,8 +93,8 @@ function App() {
               styles.image,
               {
                 transform: [
-                  ...translate(translation),
-                  ...transformOrigin(origin, {scale}),
+                  ...translate(vec.add(translation, offset)),
+                  {scale: multiply(gestureScale, scaleOffset)},
                 ],
               },
             ]}
